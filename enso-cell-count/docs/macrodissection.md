@@ -175,6 +175,7 @@ and live under [`docs/screenshots/`](screenshots/):
 | `06_roi_drawn_with_metrics_card.png`                | ROI polygon drawn; adequacy card shows median + CI.   |
 | `07_locked_roi_in_history.png`                      | ROI saved and locked; appears in the sidebar history. |
 | `08_macrodissection_sheet.png`                      | Printable macrodissection sheet (export view).        |
+| `09_macrodissection_sheet_print.png`                | Same sheet under `@media print` (close/print buttons hidden, dark title bar inverted to white). |
 
 ## Disclaimer (rendered into the sheet)
 

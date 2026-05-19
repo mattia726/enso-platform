@@ -120,5 +120,14 @@ test.describe("Macrodissection workbench visual assessment", () => {
 
     // Sanity assertion — at least the verdict label must appear in DOM.
     await expect(page.locator("[data-report-sheet]")).toBeVisible();
+
+    // 9) Switch to print media and re-capture the report as it would
+    //    appear on a printed page. This exercises the @media print CSS
+    //    pruning that hides the close/print buttons and turns the
+    //    title bar white.
+    await page.emulateMedia({ media: "print" });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: shot("09_macrodissection_sheet_print") });
+    await page.emulateMedia({ media: "screen" });
   });
 });
