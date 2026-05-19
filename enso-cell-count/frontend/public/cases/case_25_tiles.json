@@ -1,0 +1,43 @@
+{
+  "barcode": "TCGA-97-8171-01A-01-TS1",
+  "base_height": 1693,
+  "base_width": 2250,
+  "case_id": 25,
+  "cellularity_model_version": "cellularity_ssd_fold1",
+  "file_uuid": "5a1aa977-2d11-4c74-8e0d-2e174f92ba75",
+  "grid_nx": 80,
+  "grid_ny": 60,
+  "mpp_thumb_x": 4.0,
+  "mpp_thumb_y": 4.0,
+  "n_tiles_tissue": 2374,
+  "offset_x": 0,
+  "offset_y": 0,
+  "project_id": "TCGA-LUAD",
+  "purity_model_version": "v3_fold0",
+  "schema_version": 1,
+  "source": "inverse_colormap",
+  "thresholds_default": {
+    "borderline_purity_band": 0.05,
+    "borderline_tumor_cells_band": 200,
+    "purity_min": 0.2,
+    "tumor_cells_min": 1000
+  },
+  "tile_area_mm2": 0.012544000000000001,
+  "tile_encoder_version": "virchow_v1",
+  "tile_pix_h": 28,
+  "tile_pix_w": 28,
+  "tile_size_um": 112.0,
+  "tiles_bin": "case_25_grid.bin",
+  "tiles_bin_layout": [
+    "purity",
+    "purity_sd",
+    "nuclei",
+    "nuclei_sd",
+    "tumor_nuclei",
+    "tissue_fraction"
+  ],
+  "uncertainty_defaults": {
+    "nuclei_sd": 5.0,
+    "purity_sd": 0.07
+  }
+}

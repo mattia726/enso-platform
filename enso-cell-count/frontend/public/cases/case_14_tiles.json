@@ -1,0 +1,43 @@
+{
+  "barcode": "TCGA-XF-AAMY-01A-01-TSA",
+  "base_height": 1568,
+  "base_width": 3112,
+  "case_id": 14,
+  "cellularity_model_version": "cellularity_ssd_fold1",
+  "file_uuid": "3bf0f815-0acd-4363-acda-f6dd17a4a572",
+  "grid_nx": 222,
+  "grid_ny": 112,
+  "mpp_thumb_x": 8.0,
+  "mpp_thumb_y": 8.0,
+  "n_tiles_tissue": 8024,
+  "offset_x": 0,
+  "offset_y": 0,
+  "project_id": "TCGA-BLCA",
+  "purity_model_version": "v3_fold0",
+  "schema_version": 1,
+  "source": "inverse_colormap",
+  "thresholds_default": {
+    "borderline_purity_band": 0.05,
+    "borderline_tumor_cells_band": 200,
+    "purity_min": 0.2,
+    "tumor_cells_min": 1000
+  },
+  "tile_area_mm2": 0.012544000000000001,
+  "tile_encoder_version": "virchow_v1",
+  "tile_pix_h": 14,
+  "tile_pix_w": 14,
+  "tile_size_um": 112.0,
+  "tiles_bin": "case_14_grid.bin",
+  "tiles_bin_layout": [
+    "purity",
+    "purity_sd",
+    "nuclei",
+    "nuclei_sd",
+    "tumor_nuclei",
+    "tissue_fraction"
+  ],
+  "uncertainty_defaults": {
+    "nuclei_sd": 5.0,
+    "purity_sd": 0.07
+  }
+}

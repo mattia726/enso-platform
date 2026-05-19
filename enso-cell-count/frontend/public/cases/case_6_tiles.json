@@ -1,0 +1,43 @@
+{
+  "barcode": "TCGA-CV-A460-01A-02-TSB",
+  "base_height": 501,
+  "base_width": 2082,
+  "case_id": 6,
+  "cellularity_model_version": "cellularity_ssd_fold1",
+  "file_uuid": "e5a8c2e8-d1ad-4c48-a574-8cd75ee23438",
+  "grid_nx": 297,
+  "grid_ny": 71,
+  "mpp_thumb_x": 16.0,
+  "mpp_thumb_y": 16.0,
+  "n_tiles_tissue": 5202,
+  "offset_x": 0,
+  "offset_y": 0,
+  "project_id": "TCGA-HNSC",
+  "purity_model_version": "v3_fold0",
+  "schema_version": 1,
+  "source": "inverse_colormap",
+  "thresholds_default": {
+    "borderline_purity_band": 0.05,
+    "borderline_tumor_cells_band": 200,
+    "purity_min": 0.2,
+    "tumor_cells_min": 1000
+  },
+  "tile_area_mm2": 0.012544000000000001,
+  "tile_encoder_version": "virchow_v1",
+  "tile_pix_h": 7,
+  "tile_pix_w": 7,
+  "tile_size_um": 112.0,
+  "tiles_bin": "case_6_grid.bin",
+  "tiles_bin_layout": [
+    "purity",
+    "purity_sd",
+    "nuclei",
+    "nuclei_sd",
+    "tumor_nuclei",
+    "tissue_fraction"
+  ],
+  "uncertainty_defaults": {
+    "nuclei_sd": 5.0,
+    "purity_sd": 0.07
+  }
+}

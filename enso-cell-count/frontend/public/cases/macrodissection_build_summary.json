@@ -1,0 +1,262 @@
+{
+  "cases": [
+    {
+      "barcode": "TCGA-ZB-A96R-01A-01-TS1",
+      "case_id": 1,
+      "grid_nx": 222,
+      "grid_ny": 69,
+      "n_tiles_tissue": 7147,
+      "project_id": "TCGA-THYM"
+    },
+    {
+      "barcode": "TCGA-DX-A23T-01A-01-TSA",
+      "case_id": 2,
+      "grid_nx": 190,
+      "grid_ny": 48,
+      "n_tiles_tissue": 3557,
+      "project_id": "TCGA-SARC"
+    },
+    {
+      "barcode": "TCGA-98-A53B-01A-01-TS1",
+      "case_id": 3,
+      "grid_nx": 201,
+      "grid_ny": 65,
+      "n_tiles_tissue": 2613,
+      "project_id": "TCGA-LUSC"
+    },
+    {
+      "barcode": "TCGA-AF-2687-01A-02-BS2",
+      "case_id": 4,
+      "grid_nx": 98,
+      "grid_ny": 111,
+      "n_tiles_tissue": 6730,
+      "project_id": "TCGA-READ"
+    },
+    {
+      "barcode": "TCGA-G3-A5SM-01A-01-TSA",
+      "case_id": 5,
+      "grid_nx": 235,
+      "grid_ny": 105,
+      "n_tiles_tissue": 5310,
+      "project_id": "TCGA-LIHC"
+    },
+    {
+      "barcode": "TCGA-CV-A460-01A-02-TSB",
+      "case_id": 6,
+      "grid_nx": 297,
+      "grid_ny": 71,
+      "n_tiles_tissue": 5202,
+      "project_id": "TCGA-HNSC"
+    },
+    {
+      "barcode": "TCGA-A5-A0G5-01A-01-TS1",
+      "case_id": 7,
+      "grid_nx": 210,
+      "grid_ny": 78,
+      "n_tiles_tissue": 6955,
+      "project_id": "TCGA-UCEC"
+    },
+    {
+      "barcode": "TCGA-YU-A90P-01A-01-TS1",
+      "case_id": 8,
+      "grid_nx": 191,
+      "grid_ny": 37,
+      "n_tiles_tissue": 1371,
+      "project_id": "TCGA-TGCT"
+    },
+    {
+      "barcode": "TCGA-HC-A9TE-01A-01-TS1",
+      "case_id": 9,
+      "grid_nx": 248,
+      "grid_ny": 45,
+      "n_tiles_tissue": 2552,
+      "project_id": "TCGA-PRAD"
+    },
+    {
+      "barcode": "TCGA-CD-8528-01A-01-TS1",
+      "case_id": 10,
+      "grid_nx": 93,
+      "grid_ny": 66,
+      "n_tiles_tissue": 3797,
+      "project_id": "TCGA-STAD"
+    },
+    {
+      "barcode": "TCGA-B6-A408-01A-01-TS1",
+      "case_id": 11,
+      "grid_nx": 184,
+      "grid_ny": 64,
+      "n_tiles_tissue": 2614,
+      "project_id": "TCGA-BRCA"
+    },
+    {
+      "barcode": "TCGA-VM-A8C9-01A-01-TS1",
+      "case_id": 12,
+      "grid_nx": 190,
+      "grid_ny": 78,
+      "n_tiles_tissue": 2388,
+      "project_id": "TCGA-LGG"
+    },
+    {
+      "barcode": "TCGA-B0-5692-01A-01-BS1",
+      "case_id": 13,
+      "grid_nx": 98,
+      "grid_ny": 87,
+      "n_tiles_tissue": 4800,
+      "project_id": "TCGA-KIRC"
+    },
+    {
+      "barcode": "TCGA-XF-AAMY-01A-01-TSA",
+      "case_id": 14,
+      "grid_nx": 222,
+      "grid_ny": 112,
+      "n_tiles_tissue": 8024,
+      "project_id": "TCGA-BLCA"
+    },
+    {
+      "barcode": "TCGA-FS-A1Z7-06A-01-TS1",
+      "case_id": 15,
+      "grid_nx": 170,
+      "grid_ny": 58,
+      "n_tiles_tissue": 2773,
+      "project_id": "TCGA-SKCM"
+    },
+    {
+      "barcode": "TCGA-W5-AA2Z-01A-01-TS1",
+      "case_id": 16,
+      "grid_nx": 271,
+      "grid_ny": 57,
+      "n_tiles_tissue": 3154,
+      "project_id": "TCGA-CHOL"
+    },
+    {
+      "barcode": "TCGA-2H-A9GF-01A-01-TS1",
+      "case_id": 17,
+      "grid_nx": 240,
+      "grid_ny": 75,
+      "n_tiles_tissue": 3757,
+      "project_id": "TCGA-ESCA"
+    },
+    {
+      "barcode": "TCGA-WB-A81S-01A-01-TS1",
+      "case_id": 18,
+      "grid_nx": 222,
+      "grid_ny": 67,
+      "n_tiles_tissue": 4960,
+      "project_id": "TCGA-PCPG"
+    },
+    {
+      "barcode": "TCGA-14-1794-01A-01-TS1",
+      "case_id": 19,
+      "grid_nx": 98,
+      "grid_ny": 85,
+      "n_tiles_tissue": 4248,
+      "project_id": "TCGA-GBM"
+    },
+    {
+      "barcode": "TCGA-FB-AAPZ-01A-01-TS1",
+      "case_id": 20,
+      "grid_nx": 208,
+      "grid_ny": 49,
+      "n_tiles_tissue": 2311,
+      "project_id": "TCGA-PAAD"
+    },
+    {
+      "barcode": "TCGA-EK-A2H0-01A-01-TSA",
+      "case_id": 21,
+      "grid_nx": 132,
+      "grid_ny": 50,
+      "n_tiles_tissue": 2227,
+      "project_id": "TCGA-CESC"
+    },
+    {
+      "barcode": "TCGA-CM-6172-01A-01-TS1",
+      "case_id": 22,
+      "grid_nx": 97,
+      "grid_ny": 117,
+      "n_tiles_tissue": 4431,
+      "project_id": "TCGA-COAD"
+    },
+    {
+      "barcode": "TCGA-GS-A9TQ-01A-01-TS1",
+      "case_id": 23,
+      "grid_nx": 200,
+      "grid_ny": 81,
+      "n_tiles_tissue": 7264,
+      "project_id": "TCGA-DLBC"
+    },
+    {
+      "barcode": "TCGA-3H-AB3X-01A-01-TS1",
+      "case_id": 24,
+      "grid_nx": 164,
+      "grid_ny": 66,
+      "n_tiles_tissue": 3262,
+      "project_id": "TCGA-MESO"
+    },
+    {
+      "barcode": "TCGA-97-8171-01A-01-TS1",
+      "case_id": 25,
+      "grid_nx": 80,
+      "grid_ny": 60,
+      "n_tiles_tissue": 2374,
+      "project_id": "TCGA-LUAD"
+    },
+    {
+      "barcode": "TCGA-OR-A5K2-01A-01-TS1",
+      "case_id": 26,
+      "grid_nx": 176,
+      "grid_ny": 82,
+      "n_tiles_tissue": 2884,
+      "project_id": "TCGA-ACC"
+    },
+    {
+      "barcode": "TCGA-QM-A5NM-01A-01-TS1",
+      "case_id": 27,
+      "grid_nx": 243,
+      "grid_ny": 87,
+      "n_tiles_tissue": 5625,
+      "project_id": "TCGA-UCS"
+    },
+    {
+      "barcode": "TCGA-FY-A3W9-01A-01-TSA",
+      "case_id": 28,
+      "grid_nx": 167,
+      "grid_ny": 64,
+      "n_tiles_tissue": 2925,
+      "project_id": "TCGA-THCA"
+    },
+    {
+      "barcode": "TCGA-29-1703-01A-01-TS1",
+      "case_id": 29,
+      "grid_nx": 107,
+      "grid_ny": 76,
+      "n_tiles_tissue": 4162,
+      "project_id": "TCGA-OV"
+    },
+    {
+      "barcode": "TCGA-KO-8417-01A-01-TS1",
+      "case_id": 30,
+      "grid_nx": 240,
+      "grid_ny": 116,
+      "n_tiles_tissue": 10838,
+      "project_id": "TCGA-KICH"
+    },
+    {
+      "barcode": "TCGA-EV-5902-01A-01-TS1",
+      "case_id": 31,
+      "grid_nx": 62,
+      "grid_ny": 67,
+      "n_tiles_tissue": 2107,
+      "project_id": "TCGA-KIRP"
+    },
+    {
+      "barcode": "TCGA-V4-A9E9-01A-01-TS1",
+      "case_id": 32,
+      "grid_nx": 222,
+      "grid_ny": 73,
+      "n_tiles_tissue": 2872,
+      "project_id": "TCGA-UVM"
+    }
+  ],
+  "n_cases_built": 32,
+  "schema_version": 1
+}
