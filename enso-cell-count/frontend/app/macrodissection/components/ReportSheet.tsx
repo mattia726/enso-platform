@@ -50,36 +50,82 @@ export default function ReportSheet({
   threshold,
 }: ReportSheetProps) {
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
+  const cropRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Draw a low-res "ROI on H&E" thumbnail by compositing the base image
-  // with the polygon outline directly to a canvas.
+  // Draw two reference views: the whole slide with the ROI outlined, and
+  // a 1.2x bbox crop that zooms into the ROI for a closer look. Both
+  // images live in <canvas> elements so the printed sheet can include
+  // them as raster artwork without external network dependencies.
   useEffect(() => {
     if (!open || !overlayRef.current || !caseMeta || !roi) return;
-    const c = overlayRef.current;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
+    const overlay = overlayRef.current;
+    const crop = cropRef.current;
+    const ctxOverlay = overlay.getContext("2d");
+    if (!ctxOverlay) return;
     const img = new window.Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
+      // --- Whole-slide thumbnail with ROI outline --------------------
       const aspect = caseMeta.base_height / Math.max(caseMeta.base_width, 1);
-      c.width = 720;
-      c.height = Math.max(80, Math.round(720 * aspect));
-      ctx.fillStyle = "#0b0b0b";
-      ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      ctx.strokeStyle = "#ef4444";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
+      overlay.width = 720;
+      overlay.height = Math.max(80, Math.round(720 * aspect));
+      ctxOverlay.fillStyle = "#0b0b0b";
+      ctxOverlay.fillRect(0, 0, overlay.width, overlay.height);
+      ctxOverlay.drawImage(img, 0, 0, overlay.width, overlay.height);
+      ctxOverlay.strokeStyle = "#ef4444";
+      ctxOverlay.lineWidth = 3;
+      ctxOverlay.beginPath();
       roi.points.forEach((p, i) => {
-        const x = (p[0] / caseMeta.base_width) * c.width;
-        const y = (p[1] / caseMeta.base_height) * c.height;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        const x = (p[0] / caseMeta.base_width) * overlay.width;
+        const y = (p[1] / caseMeta.base_height) * overlay.height;
+        if (i === 0) ctxOverlay.moveTo(x, y);
+        else ctxOverlay.lineTo(x, y);
       });
-      ctx.closePath();
-      ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
-      ctx.fill();
-      ctx.stroke();
+      ctxOverlay.closePath();
+      ctxOverlay.fillStyle = "rgba(239, 68, 68, 0.15)";
+      ctxOverlay.fill();
+      ctxOverlay.stroke();
+
+      // --- 1.2x bbox crop --------------------------------------------
+      if (!crop) return;
+      const ctxCrop = crop.getContext("2d");
+      if (!ctxCrop) return;
+      let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity;
+      for (const [x, y] of roi.points) {
+        if (x < xmin) xmin = x;
+        if (x > xmax) xmax = x;
+        if (y < ymin) ymin = y;
+        if (y > ymax) ymax = y;
+      }
+      const bw = Math.max(xmax - xmin, 1);
+      const bh = Math.max(ymax - ymin, 1);
+      const cx = (xmin + xmax) / 2;
+      const cy = (ymin + ymax) / 2;
+      const halfW = (bw / 2) * 1.2;
+      const halfH = (bh / 2) * 1.2;
+      const sx = Math.max(0, cx - halfW);
+      const sy = Math.max(0, cy - halfH);
+      const sw = Math.min(caseMeta.base_width - sx, 2 * halfW);
+      const sh = Math.min(caseMeta.base_height - sy, 2 * halfH);
+      const cropAspect = sh / Math.max(sw, 1);
+      crop.width = 480;
+      crop.height = Math.max(80, Math.round(480 * cropAspect));
+      ctxCrop.fillStyle = "#0b0b0b";
+      ctxCrop.fillRect(0, 0, crop.width, crop.height);
+      ctxCrop.drawImage(img, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+      ctxCrop.strokeStyle = "#ef4444";
+      ctxCrop.lineWidth = 2;
+      ctxCrop.beginPath();
+      roi.points.forEach((p, i) => {
+        const xN = ((p[0] - sx) / sw) * crop.width;
+        const yN = ((p[1] - sy) / sh) * crop.height;
+        if (i === 0) ctxCrop.moveTo(xN, yN);
+        else ctxCrop.lineTo(xN, yN);
+      });
+      ctxCrop.closePath();
+      ctxCrop.fillStyle = "rgba(239, 68, 68, 0.15)";
+      ctxCrop.fill();
+      ctxCrop.stroke();
     };
     img.src = caseMeta.base_image;
   }, [open, caseMeta, roi]);
@@ -138,9 +184,21 @@ export default function ReportSheet({
             </div>
             <p className="text-[12px] text-black/60 leading-snug">
               ROI outline overlaid on the H&E thumbnail (low-resolution
-              rendering for review; the live workbench shows the same region
-              at full slide resolution).
+              rendering for review; the live workbench shows the same
+              region at full slide resolution).
             </p>
+            <div className="grid grid-cols-2 gap-3 mt-1">
+              <div className="rounded border border-black/10 overflow-hidden">
+                <canvas ref={cropRef} className="w-full block" data-report-crop />
+              </div>
+              <div className="text-[12px] text-black/60 leading-snug">
+                <p className="font-semibold text-black/80">ROI close-up</p>
+                <p>
+                  The crop on the left zooms to 1.2× of the ROI bounding box
+                  so the lab technician can identify the region on glass.
+                </p>
+              </div>
+            </div>
           </div>
           <div className="flex flex-col gap-4 text-sm">
             <section>
