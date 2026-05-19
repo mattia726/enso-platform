@@ -101,3 +101,68 @@ The current TCGA+CPTAC retrain flow uses:
 - `logs/v3_allfolds_alltiles_predictions_191512.csv` for preserved TCGA tumour fold assignments
 - `data/processed/cptac_slides_ngs_purity_final.csv` for processed CPTAC tumour linkage
 - `data/processed/cptac_master_normals.csv` for processed CPTAC normal slides
+
+### Macrodissection workbench
+
+The macrodissection workbench at `/macrodissection` is an AI-assisted ROI
+adequacy guide for downstream molecular testing. The pathologist draws a
+polygon on a digital H&E slide; the workbench computes the estimated tumor
+purity (cellularity-weighted), total nuclei, tumor nuclei, area, and an
+adequacy probability against configurable assay thresholds.
+
+Code layout:
+
+- `backend/src/enso_purity/macrodissection/` — Python package:
+  - `inverse_cmap.py` / `grid_detect.py` / `build_artifacts.py` —
+    pipeline that turns rendered PNG masks into per-tile JSON + Float32
+    binary grids consumed by the frontend.
+  - `roi.py` — Sutherland-Hodgman polygon-tile intersection, point
+    estimates, deterministic Monte-Carlo sampler.
+  - `adequacy.py` / `thresholds.py` — pass/borderline/fail labelling.
+  - `candidates.py` — sliding-window candidate ROIs with rect NMS.
+  - `storage.py` — append-only JSONL ROI store
+    (`backend/.runtime/rois/case_{N}.jsonl`).
+  - `report.py` / `router.py` — printable report payload + FastAPI router.
+
+- `frontend/lib/macrodissection/` — TypeScript twins of the math:
+  `polygon.ts`, `metrics.ts`, `adequacy.ts`, `thresholds.ts`,
+  `colormaps.ts`, `smoothing.ts`, `overlay.ts`, `candidates.ts`,
+  `tiles.ts`, `api.ts`, `static-cases.ts`, plus shared `types.ts`.
+
+- `frontend/app/macrodissection/` — Next.js page + OpenSeadragon viewer +
+  ROI/overlay components.
+
+Run locally:
+
+```bash
+make backend-install
+make backend-test                 # 57 pytest pass (incl. macrodissection)
+make macrodissection-artifacts    # rebuild per-case JSON + bins from PNG masks
+make macrodissection-serve        # uvicorn on :8000
+
+make frontend-install
+make frontend-test                # 40 vitest pass (TS math)
+make frontend-build               # next build (static export)
+make visual-check                 # Playwright -> docs/screenshots/*.png
+```
+
+Key caveats:
+
+- **Tile-artifact generation is offline-buildable**: the CI VM does not need
+  the trained model weights mounted. `build_artifacts` recovers per-tile
+  predictions from the already-checked-in rendered PNG masks via
+  inverse-colormap decoding. A future `--exact` flag will plug in raw
+  scalar grids when they are available.
+- **Identical math both sides**: the Python `roi.py` and the TS
+  `metrics.ts` use the same Sutherland-Hodgman tile-clipping algorithm,
+  the same Monte-Carlo formulation, and a deterministic seed derived from
+  the polygon vertices, so the client preview and the authoritative
+  server recompute always agree to ≤1e-3.
+- **Visual smoothing is decoupled from metrics**: the overlay applies an
+  alpha-aware Gaussian blur with a zoom-adaptive sigma, but the ROI
+  metrics card always reads the raw tile grid.
+- **Threshold profiles**: `humanitas_ngs` (default), `research`, and
+  `strict_solid_tumor`. Per-call overrides are accepted at preview/save.
+- **CORS / API**: the FastAPI app whitelists `localhost:3000` and
+  `localhost:3001` (Next dev server) by default; extra origins can be
+  supplied via `ENSO_API_CORS_ORIGINS`.
