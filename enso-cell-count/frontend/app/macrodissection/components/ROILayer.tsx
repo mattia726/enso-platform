@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type OpenSeadragon from "openseadragon";
+import OpenSeadragon from "openseadragon";
 
 import type { Point2D } from "@/lib/macrodissection/types";
 
@@ -41,12 +41,7 @@ export default function ROILayer({
   useEffect(() => {
     if (!viewer || !svgRef.current) return;
     const el = svgRef.current;
-    const placement = new (window as any).OpenSeadragon.Rect(
-      0,
-      0,
-      1,
-      baseHeight / baseWidth,
-    );
+    const placement = new OpenSeadragon.Rect(0, 0, 1, baseHeight / baseWidth);
     el.style.position = "absolute";
     el.style.left = "0";
     el.style.top = "0";

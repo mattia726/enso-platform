@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import type OpenSeadragon from "openseadragon";
+import { useEffect, useRef } from "react";
+import OpenSeadragon from "openseadragon";
 
 import type {
   LayerName,
@@ -55,11 +55,30 @@ function specFor(layer: LayerName) {
   }
 }
 
-/**
- * Renders one heatmap layer as a canvas overlay positioned in viewport
- * coordinates by OpenSeadragon. The canvas always lives at tile-grid
- * resolution; CSS / browser scaling stretches it to fit the H&E image.
- */
+function drawHeatmap(
+  canvas: HTMLCanvasElement,
+  tiles: TileArrays,
+  layer: LayerName,
+  opacity: number,
+  sigma: number,
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const { grid_nx: nx, grid_ny: ny } = tiles.grid;
+  canvas.width = nx;
+  canvas.height = ny;
+  const img = renderHeatmap({
+    width: nx,
+    height: ny,
+    values: valuesFor(layer, tiles),
+    tissueFraction: tiles.tissue_fraction,
+    spec: specFor(layer),
+    opacity,
+    sigma,
+  });
+  ctx.putImageData(img, 0, 0);
+}
+
 export default function HeatmapOverlay({
   viewer,
   tiles,
@@ -71,92 +90,28 @@ export default function HeatmapOverlay({
 }: HeatmapOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Build / refresh the canvas pixel data when the layer settings change.
-  useEffect(() => {
-    if (!canvasRef.current || !viewer) return;
-    const c = canvasRef.current;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    const { grid_nx: nx, grid_ny: ny } = tiles.grid;
-    c.width = nx;
-    c.height = ny;
-    const zoom = viewer.viewport.getZoom(true);
-    const maxZoom = viewer.viewport.getMaxZoom();
-    const sigma = sigmaForZoom(zoom, maxZoom, smoothing);
-    const img = renderHeatmap({
-      width: nx,
-      height: ny,
-      values: valuesFor(layer, tiles),
-      tissueFraction: tiles.tissue_fraction,
-      spec: specFor(layer),
-      opacity,
-      sigma,
-    });
-    ctx.putImageData(img, 0, 0);
-  }, [layer, opacity, smoothing, tiles, viewer]);
-
-  // Re-blur on zoom (purely visual; metrics stay computed against raw tiles).
-  useEffect(() => {
-    if (!viewer) return;
-    const refresh = () => {
-      if (!canvasRef.current) return;
-      const ctx = canvasRef.current.getContext("2d");
-      if (!ctx) return;
-      const { grid_nx: nx, grid_ny: ny } = tiles.grid;
-      canvasRef.current.width = nx;
-      canvasRef.current.height = ny;
-      const sigma = sigmaForZoom(
-        viewer.viewport.getZoom(true),
-        viewer.viewport.getMaxZoom(),
-        smoothing,
-      );
-      const img = renderHeatmap({
-        width: nx,
-        height: ny,
-        values: valuesFor(layer, tiles),
-        tissueFraction: tiles.tissue_fraction,
-        spec: specFor(layer),
-        opacity,
-        sigma,
-      });
-      ctx.putImageData(img, 0, 0);
-    };
-    viewer.addHandler("zoom", refresh);
-    return () => {
-      try {
-        viewer.removeHandler("zoom", refresh);
-      } catch {
-        /* ignore */
-      }
-    };
-  }, [viewer, layer, opacity, smoothing, tiles]);
-
-  // Mount as an OSD overlay aligned to image bounds.
+  // Mount as an OSD overlay aligned to the image bounds. We re-mount when
+  // the case (and therefore baseWidth/baseHeight) changes.
   useEffect(() => {
     if (!viewer || !canvasRef.current) return;
     const c = canvasRef.current;
     c.style.width = "100%";
     c.style.height = "100%";
-    c.style.position = "absolute";
-    c.style.left = "0";
-    c.style.top = "0";
     c.style.imageRendering = "pixelated";
     c.style.pointerEvents = "none";
-    const placement = new (window as any).OpenSeadragon.Rect(
-      0,
-      0,
-      1,
-      baseHeight / baseWidth,
-    );
-    // OpenSeadragon image-coordinate placement is (x, y, w, h) in normalized
-    // viewport units where width=1 == image width. The placement above
-    // anchors the overlay to fit the entire H&E.
+    // OSD accepts a plain {x, y, width, height} object as a location and
+    // normalises it into an OpenSeadragon.Rect internally. We anchor (0,0)
+    // to the image top-left and 1 to its full width; the height is in the
+    // same units (so we divide by aspect ratio).
     try {
       viewer.removeOverlay(c);
     } catch {
       /* not yet attached */
     }
-    viewer.addOverlay({ element: c, location: placement });
+    viewer.addOverlay({
+      element: c,
+      location: new OpenSeadragon.Rect(0, 0, 1, baseHeight / baseWidth),
+    });
     return () => {
       try {
         viewer.removeOverlay(c);
@@ -165,6 +120,39 @@ export default function HeatmapOverlay({
       }
     };
   }, [viewer, baseWidth, baseHeight]);
+
+  // Redraw whenever the layer settings or tiles change.
+  useEffect(() => {
+    if (!canvasRef.current || !viewer) return;
+    const sigma = sigmaForZoom(
+      viewer.viewport.getZoom(true),
+      viewer.viewport.getMaxZoom(),
+      smoothing,
+    );
+    drawHeatmap(canvasRef.current, tiles, layer, opacity, sigma);
+  }, [layer, opacity, smoothing, tiles, viewer]);
+
+  // Recompute sigma on zoom (purely visual; metric numbers stay raw).
+  useEffect(() => {
+    if (!viewer) return;
+    const handler = () => {
+      if (!canvasRef.current) return;
+      const sigma = sigmaForZoom(
+        viewer.viewport.getZoom(true),
+        viewer.viewport.getMaxZoom(),
+        smoothing,
+      );
+      drawHeatmap(canvasRef.current, tiles, layer, opacity, sigma);
+    };
+    viewer.addHandler("zoom", handler);
+    return () => {
+      try {
+        viewer.removeHandler("zoom", handler);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [viewer, layer, opacity, smoothing, tiles]);
 
   return (
     <canvas

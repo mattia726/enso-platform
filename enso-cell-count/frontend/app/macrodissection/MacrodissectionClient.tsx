@@ -43,7 +43,7 @@ export interface SavedROI {
 
 const DEFAULT_LAYER_STATE: LayerPanelState = {
   layer: "adequacy",
-  opacity: 0.55,
+  opacity: 0.65,
   smoothing: "balanced",
   showRawTiles: false,
   profileName: "humanitas_ngs",
@@ -75,6 +75,18 @@ export default function MacrodissectionClient() {
   const [viewer, setViewer] = useState<OpenSeadragon.Viewer | null>(null);
   const debounceRef = useRef<number | null>(null);
 
+  // The macrodissection workbench is always shown with the clinical dark
+  // theme, regardless of what the rest of the site is using. We restore
+  // the original theme class on unmount.
+  useEffect(() => {
+    const html = document.documentElement;
+    const had = html.classList.contains("dark");
+    html.classList.add("dark");
+    return () => {
+      if (!had) html.classList.remove("dark");
+    };
+  }, []);
+
   const selectedCase = useMemo(
     () => cases.find((c) => c.case_id === selectedCaseId) ?? null,
     [cases, selectedCaseId],
@@ -91,15 +103,11 @@ export default function MacrodissectionClient() {
       .then((cs) => {
         setCases(cs);
         if (cs.length > 0) {
-          // Prefer a case with a moderate-sized tile grid (better visual demo).
-          const sorted = [...cs].sort((a, b) => {
-            const target = 5000;
-            return (
-              Math.abs(a.n_tiles_tissue - target) -
-              Math.abs(b.n_tiles_tissue - target)
-            );
-          });
-          setSelectedCaseId(sorted[0].case_id);
+          // Default to case 1 (TCGA-THYM, high-purity tumor) for the demo
+          // because it shows the brightest adequacy overlay; fall back to
+          // any case if case_1 is missing.
+          const preferred = cs.find((c) => c.case_id === 1) ?? cs[0];
+          setSelectedCaseId(preferred.case_id);
         }
       })
       .catch((err) => {
@@ -122,9 +130,9 @@ export default function MacrodissectionClient() {
     setCandidates(null);
     loadTileArraysForCase(selectedCase)
       .then(setTiles)
-      .catch((err) =>
-        setTilesError(err instanceof Error ? err.message : String(err)),
-      );
+      .catch((err) => {
+        setTilesError(err instanceof Error ? err.message : String(err));
+      });
   }, [selectedCase]);
 
   // Recompute preview metrics whenever the draft polygon or profile changes.

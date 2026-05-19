@@ -45,6 +45,10 @@ export default function WSIViewer({
 }: WSIViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
+  const onReadyRef = useRef(onReady);
+  const onZoomChangeRef = useRef(onZoomChange);
+  onReadyRef.current = onReady;
+  onZoomChangeRef.current = onZoomChange;
 
   useEffect(() => {
     let cancelled = false;
@@ -88,14 +92,14 @@ export default function WSIViewer({
       viewerRef.current = viewer;
       const handleZoom = () => {
         if (!viewer) return;
-        onZoomChange?.(viewer.viewport.getZoom(true), viewer.viewport.getMaxZoom());
+        onZoomChangeRef.current?.(viewer.viewport.getZoom(true), viewer.viewport.getMaxZoom());
       };
       viewer.addHandler("zoom", handleZoom);
       viewer.addHandler("open", () => {
         if (cancelled || !viewer) return;
         viewer.viewport.goHome(true);
         handleZoom();
-        onReady?.(viewer);
+        onReadyRef.current?.(viewer);
       });
       detach = () => {
         if (viewer) {
@@ -123,7 +127,8 @@ export default function WSIViewer({
         viewerRef.current = null;
       }
     };
-  }, [baseImageUrl, onReady, onZoomChange]);
+  }, [baseImageUrl]);
+// eslint-disable-next-line react-hooks/exhaustive-deps -- onReady/onZoomChange intentionally stable
 
   return (
     <div
