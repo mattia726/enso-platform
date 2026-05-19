@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Outputs
+outputs/
+*.pt
+*.ckpt
+*.log
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Enso project data folders (raw / processed artifacts)
+data/interim/**
+!data/**/.gitkeep
+
+# Experiment tracking
+wandb/**
+mlruns/**
+
+# Node / Next
+node_modules/
+.next/
+dist/
+.turbo/
+
+# Frontend (if nested)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+
+# Frontend generated/debug assets
+frontend/gallery_from_vm/
+frontend/public/gallery/debug_blend_*.png
+frontend/public/gallery/viewer_failures/
+
+# Cursor scratchpad (plans/rules/commands SHOULD be committed)
+.cursor/scratchpad.md
+
+# OS
+.DS_Store
+
+# Editable install / packaging artifacts
+*.egg-info/
+**/*.egg-info/
+
+# Editor workspace
+*.code-workspace
+
+# --- allow specific raw inputs needed by cloud agent ---
+!data/raw/TCGA_mastercalls.abs_tables_JSedit.fixed.txt
+!data/raw/slides_metadata_report(1).xlsx
+
+# --- allow processed manifest(s) for ML pipeline ---
+!data/processed/wedge_mvp_dataset*.xlsx
+
+# --- allow specific upstream images needed by oner docs/results ---
+!third_party/oner/upstream/SRTPMs-1.0.0/_images/**/*.png
+
+google/
+.vscode/
+.cursor/
+
+*:Zone.Identifier

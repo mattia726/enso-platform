@@ -1,0 +1,6 @@
+# One file_uuid_original or barcode per line. Slides listed here are excluded from the gallery
+# (e.g. slides that contain pen/marker annotations). Add UUIDs after visually reviewing
+# the generated interactive_*.html heatmaps on the VM or in the demo.
+# Example:
+# abc123-def456-...
+# TCGA-XX-XXXX-01A-01-TS1

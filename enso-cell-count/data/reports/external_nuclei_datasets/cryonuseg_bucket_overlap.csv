@@ -1,0 +1,7 @@
+URL,TCGA,Race,Gender,Age,Organ,BitDepth,Magnification,SVS-Width,SVS-Height,Pixel-Dimensions,Disease,File Name,CentroidX,CentroidY,"Nr Cells
+(bioinformatician)","Nr Cells
+(biologist) 1st round of manual mark-ups","Nr Cells
+(biologist) 2nd round of manual mark-ups","Nr Cells organwise
+(bioinformatician)","Nr Cells organwise
+(biologist) 1st round of manual mark-ups","Nr Cells organwise
+(biologist) 2nd round of manual mark-ups",Notes,file_id_norm,case_id_cryo,file_id,file_name,file_size_MB,full_path,slide_barcode,case_id,sample_vial,sample_type_code,section_type,section_number,section_key

@@ -1,0 +1,3 @@
+# Static case assets for Cloudflare Pages deployment.
+# Add files named: case_1_base.jpg, case_1_mask.png, case_2_base.jpg, case_2_mask.png, ...
+# Generate on the VM (base = H&E thumbnail, mask = heatmap overlay with transparency).

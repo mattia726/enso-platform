@@ -1,0 +1,515 @@
+Bottom line
+
+The accurate strategy is not to train cell quantity from ABSOLUTE purity alone. Purity is a fraction; cellularity is an amount/density. The de-risked path is to build a second model, EnsoCellularity, that predicts nucleated-cell / nuclei count per tile from the same Virchow tile embeddings, trained using nuclear instance-segmentation labels generated from TCGA images and validated against public/manual nuclei datasets.
+
+Then, at inference:
+
+estimated cells selected by doctor
+= sum(predicted total nuclei per selected tile)
+
+estimated tumor cells selected
+= sum(predicted total nuclei per tile × local tumor fraction from EnsoPurity)
+
+This gives the doctor exactly what you want: orders of magnitude of total cells and tumor cells in the selected region, not a fake exact number.
+
+Your existing TCGA/GDC pipeline is already an excellent substrate: it has GDC same-portion ABSOLUTE matching, normals assigned purity 0.0, Virchow tile embeddings, tile coordinates, and pathologist percent_tumor_nuclei availability for a large fraction of frozen-section slides .
+
+1. What TCGA/GDC can give us for this task
+
+GDC represents biospecimens hierarchically: a case has samples; samples have portions; portions generate slides and analytes; analytes generate aliquots used for sequencing. This is exactly why your same-portion GDC API matching is the correct biological linkage for purity/ploidy labels. GDC explicitly describes biospecimen data as hierarchical and notes that portions are used to generate diagnostic slides while aliquots are associated with sequencing data.
+
+The TCGA barcode documentation also confirms the relevant structure: samples are split into vials and portions, analytes are extracted from portions, and tissue slides can be TS, BS, or MS, followed by a number or letter indicating slide order. This supports your conclusion that same-portion matching should come from the GDC biospecimen tree, not naïve string slicing of the WSI barcode.
+
+For this new model, the useful TCGA/GDC fields are:
+
+Data source	Level	Use for cell-count model
+Raw H&E WSI pixels	tile / slide	Needed to generate nuclear segmentation labels.
+Virchow tile embeddings	tile	Input to the cheap second model.
+Tile coordinates	tile	Required to map labels and sum selected ROIs.
+MPP / dimensions	slide	Required to normalize counts by physical area.
+ABSOLUTE purity	aliquot	Use for tumor fraction model and validation, not total cell count.
+ABSOLUTE ploidy	aliquot	Optional DNA-mass / genome-equivalent estimate.
+GDC percent_tumor_nuclei	slide	Validation/auxiliary tumor-fraction signal, not total cell count.
+GDC percent_tumor_cells / percent_stromal_cells	slide	Coarse validation of composition, when available.
+sample type 11 normal	slide	Keep as purity 0.0 controls, but not as low-cell controls.
+
+GDC lists percent stromal cells, percent tumor cells, and percent tumor nuclei as optional slide-level fields, but these are percentages, not counts. They can help validate composition, but they cannot tell us whether a tile has 5, 50, or 250 nuclei.
+
+ABSOLUTE is valuable because it infers tumor purity and malignant-cell ploidy from somatic DNA alterations; the PanCanAtlas page exposes the TCGA_mastercalls.abs_tables_JSedit.fixed.txt purity/ploidy file you are already using.
+
+2. What TCGA/GDC does not give us
+
+TCGA/GDC does not provide a reliable official field like:
+
+tile_id → total nuclei count
+tile_id → total viable cells
+tile_id → tumor nuclei count
+tile_id → stromal nuclei count
+tile_id → lymphocyte count
+
+So the cell-count label must come from image-derived nuclei segmentation, not from purity.
+
+This is the key modeling separation:
+
+purity / tumor content = fraction of tumor cells
+cellularity / cell amount = number of cells or nuclei
+tumor-cell amount = fraction × number
+
+A slide can have:
+
+high purity + low cellularity
+low purity + high cellularity
+high purity + high cellularity
+normal tissue + high cellularity
+necrotic tissue + near-zero viable cellularity
+
+Therefore, EnsoPurity and EnsoCellularity should be separate models that are combined downstream.
+
+3. Best public data source found: TCGA pan-cancer nuclei segmentations
+
+The strongest directly relevant public resource is Pan-Cancer-Nuclei-Seg, a TCGA nuclei segmentation dataset. The Scientific Data paper reports automatic nucleus segmentation on 5,060 TCGA whole-slide images across 10 TCGA cancer types, representing roughly 5 billion segmented objects, plus manual segmentation labels on 1,356 patches across 14 cancer types. It also reports WSI-level and patch-level quality control; after comparison to manual segmentation, the released segmentation data had average Dice of at least 77% and average instance-level Dice of at least 62% in every released cancer type.
+
+This is extremely important because it gives us a real-world, TCGA-native source of nuclei counts. The DICOM-converted release stores nuclei annotations as closed polygons with area, and provides GCS/AWS manifests for programmatic download; the metadata lists TCGA collections including BLCA, BRCA, CESC, COAD, GBM, LUAD, LUSC, PAAD, PRAD, READ, SKCM, STAD, UCEC, and UVM.
+
+However, this dataset may not fully overlap with your current frozen-section TS/MS/BS wedge dataset, because many TCGA public nuclei resources include diagnostic DX slides. The correct first step is therefore an overlap audit:
+
+Pan-Cancer-Nuclei-Seg barcode/file_id
+∩
+your wedge_mvp_dataset.xlsx file_uuid_original/barcode
+
+If there is overlap, those slides become direct high-quality count supervision. If overlap is mostly DX, the dataset is still extremely valuable for validating the segmentation teacher and coordinate-counting pipeline, but not sufficient alone for final training on your frozen-section distribution.
+
+4. Other useful public nuclei datasets and models
+
+These are the datasets/models I would use to de-risk the teacher segmentation layer.
+
+Resource	Why it matters
+Pan-Cancer-Nuclei-Seg	TCGA-native WSI-scale nuclei segmentation; best direct evidence source.
+PanNuke	Pan-cancer H&E nuclei instance segmentation/classification with clinically useful classes.
+MoNuSeg	Multi-organ TCGA-derived nuclei segmentation benchmark.
+NuCLS	TCGA breast cancer nuclei annotations with pathologist/non-pathologist/multirater data.
+CryoNuSeg	Frozen-section H&E nuclei segmentation; important because your wedge dataset is frozen TS/MS/BS.
+HoVer-Net	Strong nuclei instance segmentation/classification architecture for H&E.
+CellViT	Modern ViT-based nuclei segmentation/classification trained/evaluated on PanNuke.
+StarDist / Cellpose	Useful independent teacher baselines and disagreement checks.
+OpenTME	New TCGA cell-level/TME profile resource; useful as external sanity check, not primary labels yet.
+
+PanNuke contains about 200k nuclei in five clinically important classes and 19 tissue types, with clinical-pathologist QC and “clinical wild” diversity. This is useful for class-specific nuclei counts: neoplastic, inflammatory, connective, epithelial, dead/non-viable.
+
+NuCLS contains more than 220k labeled nuclei from TCGA breast cancer images, with both single-rater and multi-rater annotations; the GigaScience paper reports 128k nucleus annotations from 3,944 fields of view and 125 triple-negative breast cancer patients, plus about 97.3k multi-rater annotations. This is useful for measuring annotation variability and calibration.
+
+CryoNuSeg is especially relevant because it is fully annotated H&E frozen-section nuclei data and explicitly notes that frozen-section preparation can degrade image quality and change nuclear appearance relative to FFPE. That directly de-risks your use case because your TCGA wedge uses frozen TS/MS/BS sections.
+
+HoVer-Net was designed for simultaneous segmentation and classification of nuclei in H&E images, including clustered/overlapping nuclei, and introduced a colorectal H&E dataset with 24,319 exhaustively annotated nuclei.
+
+StarDist is an independent nuclei/cell detection method based on star-convex polygons, useful as a second teacher or disagreement detector.
+
+Cellpose is a generalist segmentation method for cells and nuclei across varied microscopy images; it is useful as a robustness baseline, although not pathology-specific enough to be the only teacher.
+
+CellViT is a more modern pathology-specific option: it performs automated instance segmentation of cell nuclei using a Vision Transformer and was trained/evaluated on PanNuke.
+
+OpenTME is a very recent TCGA resource: it provides precomputed tumor microenvironment profiles for 3,634 TCGA H&E WSIs across five cancer types and includes tissue QC, tissue segmentation, cell detection/classification, and more than 4,500 quantitative readouts per slide. Because it is new and model-derived, I would use it as an external sanity check rather than as the primary training source.
+
+5. Correct model target: “nucleated-cell estimate,” not literal full-cell count
+
+On H&E, the reliable visible object is the nucleus. Cell membranes and full cytoplasmic boundaries are often not reliably visible in solid-tumor H&E. So the product should internally predict:
+
+nuclei_count_per_tile
+
+and externally present it as:
+
+estimated nucleated cells
+
+This is clinically honest and useful for NGS adequacy. It also avoids false precision.
+
+For each 224×224 tile at 0.5 µm/pixel:
+
+tile side = 224 × 0.5 µm = 112 µm
+tile area = 112 × 112 µm² = 12,544 µm²
+tile area = 0.012544 mm²
+
+So the model should output both:
+
+nuclei_per_tile
+nuclei_per_mm²
+
+For example:
+
+100 nuclei in one tile ≈ 7,973 nuclei/mm²
+
+This normalization is important if any slide has imperfect MPP metadata.
+
+6. Recommended architecture
+
+Do not use a slide-level MIL model for this second task at first. Cell count is naturally tile-level.
+
+Use a cheap tile-level student model:
+
+Virchow tile embedding
++ optional 3×3 local-neighborhood embedding summary
++ tissue fraction / MPP metadata
+→ EnsoCellularity head
+→ predicted total nuclei count + uncertainty
+
+Virchow is a strong choice for the feature substrate because it is a 632M-parameter pathology foundation model trained with DINOv2 on 1.5M H&E WSIs from diverse tissues/specimens, with strong tile-level and slide-level benchmark performance.
+
+Recommended output head:
+
+μ_count              # expected nuclei count
+dispersion           # for negative-binomial uncertainty
+count_bin            # ordinal bin for UI
+q05, q50, q95         # optional quantile interval
+quality_flag         # background / low-confidence / artifact
+
+Recommended losses:
+
+L = NegativeBinomialLoss(count)
+  + MAE(log1p(count))
+  + ordinal count-bin cross entropy
+  + quantile loss for prediction interval calibration
+
+Why not plain MSE? Counts are non-negative, skewed, and heteroscedastic. A 20-cell error is huge for a nearly empty tile and small for a 300-cell tile.
+
+Useful UI bins:
+
+0 / background
+1–10 nuclei
+10–50 nuclei
+50–150 nuclei
+150–300 nuclei
+>300 nuclei
+
+For the doctor, show an aggregated order-of-magnitude estimate, not per-tile exactness.
+
+7. Label-generation strategy
+Step A — Try direct TCGA nuclei-label overlap
+
+First join your wedge slide table to Pan-Cancer-Nuclei-Seg:
+
+join key candidates:
+- exact barcode
+- normalized TCGA slide submitter_id
+- file_uuid / GDC file_id where available
+- case/sample/vial/slide suffix as fallback only
+
+For overlapping slides:
+
+nucleus polygon / centroid → tile coordinate → nuclei count per tile
+
+Use a centroid rule:
+
+count nucleus if nucleus centroid lies inside the tile
+
+This avoids double-counting border nuclei.
+
+Better still, when computing labels from raw segmentation, extract a halo:
+
+central tile: 224×224
+segmentation crop: 320×320 or 384×384
+count only centroids inside central 224×224
+
+This prevents border truncation from undercounting nuclei.
+
+Step B — Generate labels on your actual frozen-section wedge slides
+
+Because your production model should work on your TS/MS/BS frozen-section distribution, generate pseudo-labels directly on the raw tiles from your wedge slides:
+
+raw TCGA WSI tile
+→ teacher nuclei segmentation
+→ total nuclei count
+→ optional nuclei class counts
+→ label attached to Virchow embedding row
+
+Teacher ensemble:
+
+Teacher 1: CellViT or HoVer-Net trained/fine-tuned on PanNuke
+Teacher 2: StarDist histology or Cellpose nuclei
+Teacher 3: optional TCGA Pan-Cancer-Nuclei-Seg calibration model
+
+Use teacher disagreement as uncertainty:
+
+if |teacher_A_count - teacher_B_count| is high:
+    downweight or route to manual audit
+Step C — Human audit set
+
+A small audited set is mandatory before claiming clinical utility.
+
+Recommended audit size:
+
+3,000–5,000 tiles
+
+Stratify by:
+
+TCGA project / organ
+sample type: 01, 02, 05, 06, 07, 11
+section type: TS, MS, BS
+count bin
+purity bin
+percent_tumor_nuclei bin
+frozen artifacts
+necrosis
+lymphocyte-rich regions
+stroma-rich regions
+background
+scanner/stain variation
+
+The annotation task can be point-counting nuclei, not full mask tracing. Full masks are useful for a subset, but for your product, count calibration is more important than perfect contours.
+
+8. How to use purity and pathologist fields correctly
+ABSOLUTE purity
+
+Use it for EnsoPurity and for tumor-cell estimation:
+
+predicted_tumor_nuclei_tile
+= predicted_total_nuclei_tile × local_tumor_fraction_tile
+
+Do not use ABSOLUTE purity as a label for total cells.
+
+ABSOLUTE ploidy
+
+Use it only for optional DNA/genome-equivalent estimates:
+
+DNA_pg_tile
+≈ nuclei_count_tile × 6.46 × [(1 - f_tumor) + f_tumor × (ploidy / 2)]
+
+A human diploid cell is commonly estimated at about 6.46 pg DNA.
+
+GDC percent_tumor_nuclei
+
+Use it as a slide-level validation signal:
+
+slide_predicted_tumor_nuclei_fraction
+= sum(predicted_tumor_nuclei_tile) / sum(predicted_total_nuclei_tile)
+
+Compare that with:
+
+GDC percent_tumor_nuclei / 100
+
+This validates the composition side. It does not validate total count.
+
+Normal slides
+
+Sample type 11 should be:
+
+purity = 0.0
+tumor_nuclei ≈ 0
+total_nuclei may be high
+
+The GDC sample-type table defines code 11 as Solid Tissue Normal, while codes 01, 02, 05, 06, and 07 cover primary, recurrent, new primary, metastatic, and additional metastatic tumor samples.
+
+9. Inference-time product behavior
+
+For a doctor-selected region R:
+
+estimated_total_nucleated_cells(R)
+= Σ_i coverage_i × predicted_total_nuclei_i
+
+where coverage_i handles partially selected tiles.
+
+Tumor-cell estimate:
+
+estimated_tumor_nuclei(R)
+= Σ_i coverage_i × predicted_total_nuclei_i × predicted_tumor_fraction_i
+
+Optional DNA estimate:
+
+estimated_DNA_ng(R)
+≈ Σ_i DNA_pg_i / 1000
+
+UI example:
+
+Selected region: 6.2 mm²
+Estimated nucleated cells: ~85k
+Likely range: 45k–140k
+Estimated tumor nuclei: ~52k
+Estimated tumor fraction: ~61%
+Approximate pre-extraction DNA: ~0.5 µg
+Confidence: medium
+
+The UI should never imply exact extraction yield. Extraction yield depends on fixation, necrosis, tissue processing, scraping efficiency, extraction chemistry, and lab protocol.
+
+10. Evaluation plan
+
+Evaluate at two levels.
+
+Tile-level metrics
+MAE(log1p count)
+negative-binomial NLL
+Spearman correlation
+within-factor-2 accuracy
+within-order-of-magnitude-bin accuracy
+background/empty-tile accuracy
+prediction interval coverage
+ROI-level metrics
+
+This is more clinically relevant.
+
+Create simulated doctor selections:
+
+small ROI: 0.1–0.5 mm²
+medium ROI: 0.5–2 mm²
+large ROI: 2–10 mm²
+
+Then compare:
+
+sum(predicted counts)
+vs.
+sum(manual/teacher/audited counts)
+
+ROI aggregation should be much more stable than single-tile prediction.
+
+Primary product metric:
+
+% of selected ROIs where predicted total cells are within factor 2
+% of selected ROIs where predicted tumor cells are within factor 2
+% of selected ROIs assigned correct order-of-magnitude bin
+
+Split strictly by:
+
+case_id / aliquot_barcode
+
+not by tile, to prevent leakage.
+
+Also run held-out stress tests by:
+
+TCGA project
+sample type
+section type
+scanner/stain
+count bin
+purity bin
+normal vs tumor
+11. De-risked implementation plan
+Phase 1 — Build the cellularity label table
+
+Create:
+
+data/processed/tile_cellularity_labels.parquet
+
+Columns:
+
+file_uuid_original
+barcode
+tile_x
+tile_y
+mpp_x
+mpp_y
+tile_area_mm2
+embedding_index
+teacher_total_nuclei
+teacher_neoplastic_nuclei_optional
+teacher_inflammatory_nuclei_optional
+teacher_connective_nuclei_optional
+teacher_dead_nuclei_optional
+teacher_confidence
+teacher_disagreement
+quality_flags
+source
+
+source should be one of:
+
+pan_cancer_nuclei_seg
+teacher_segmentation
+manual_audit
+Phase 2 — Validate coordinate mapping
+
+Tests to write before training:
+
+tile coordinate → WSI pixel coordinate is correct
+MPP normalization is correct
+centroid-in-tile counting does not double-count border nuclei
+halo extraction prevents edge undercount
+DICOM annotation coordinates align to WSI base level
+tile count sums match WSI region count
+Phase 3 — Teacher benchmark
+
+Benchmark CellViT/HoVer-Net/StarDist/Cellpose against:
+
+Pan-Cancer-Nuclei-Seg manual patches
+PanNuke
+NuCLS
+CryoNuSeg
+small Enso manual audit set
+
+Choose the teacher or teacher ensemble based on count accuracy, not only segmentation Dice.
+
+Phase 4 — Generate large-scale TCGA pseudo-labels
+
+Run the teacher on your actual wedge slides where raw SVS is available.
+
+Do not need every tile at first. A strong first pass:
+
+1–3 million tiles
+balanced across count bins, projects, section types, normals, purity, and artifacts
+
+Then expand if the student underfits.
+
+Phase 5 — Train EnsoCellularity
+
+Model:
+
+embedding_dim → LayerNorm → MLP → count distribution
+
+Optional context model:
+
+center tile embedding + 8 neighboring embeddings → small attention/MLP head
+
+The context version is safer for tissue density and border effects, but the first MVP can be center-tile only.
+
+Phase 6 — Calibrate and lock
+
+Use the human audit set to calibrate:
+
+mean count
+uncertainty intervals
+count bins
+ROI-level aggregation
+
+Freeze the model version and document:
+
+training data
+teacher models
+manual audit set
+failure modes
+model card
+intended use
+12. Major risks and mitigations
+Risk	Why it matters	Mitigation
+Purity confused with count	Produces biologically wrong labels	Separate EnsoPurity and EnsoCellularity.
+Public nuclei labels mostly DX/FFPE	Your wedge is TS/MS/BS frozen	Use public data for teacher validation; generate labels on actual wedge frozen slides.
+Frozen artifacts	Nuclei appearance changes in FS	Include CryoNuSeg and TCGA FS audit tiles.
+Teacher bias	Student inherits wrong labels	Teacher ensemble, disagreement filtering, human audit calibration.
+Border undercount	Nuclei cut by tile edges	Use halo extraction and centroid-in-central-tile rule.
+MPP errors	Counts depend on physical area	Predict both per tile and per mm²; verify MPP.
+Necrosis/mucin/background	Tissue area may contain few viable cells	Add QC/artifact head and count-bin model.
+Tumor vs non-tumor confusion	Doctor needs tumor-cell amount too	Combine total count with EnsoPurity; optionally train class-specific nuclei counts.
+Slide leakage	Inflated validation	Split by case/aliquot, never by tile.
+Clinical overclaim	“Exact cells” and “DNA yield” are unsafe	Present order-of-magnitude ranges and confidence.
+13. Final recommended design
+
+Build:
+
+EnsoPurity:
+    Virchow tile embeddings → tumor fraction / purity heatmap
+
+EnsoCellularity:
+    Virchow tile embeddings → total nuclei count / cellularity heatmap
+
+Derived:
+    tumor nuclei per tile = total nuclei × tumor fraction
+
+This is the most evidence-based and de-risked design because it respects the biology:
+
+purity = composition
+cellularity = quantity
+NGS adequacy = quantity × composition × tissue quality
+
+The first clinical/product claim should be:
+
+“Estimated nucleated-cell quantity and tumor-cell quantity in the selected region, reported as an order-of-magnitude adequacy aid for molecular testing.”
+
+Not:
+
+“Exact cell count” or “guaranteed DNA yield.”
+
+The strongest immediate next technical step is the overlap audit between your wedge slides and Pan-Cancer-Nuclei-Seg, followed by a teacher-segmentation run on your actual TS/MS/BS frozen-section tiles and a small human-count audit set. That gives you a defensible label source, a cheap Virchow-based student model, and a validation path that should stand up clinically.

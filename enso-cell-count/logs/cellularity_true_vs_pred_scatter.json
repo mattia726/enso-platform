@@ -1,0 +1,10 @@
+{
+  "slides": 5189,
+  "spearman_rho": 0.9882516383530331,
+  "r2": 0.975656955953034,
+  "slide_mae_count": 1.7656444297901652,
+  "slide_medae_count": 1.2179065163009035,
+  "mean_true_cell_count": 57.87891601337839,
+  "mean_pred_cell_count": 58.5415928313503,
+  "tile_mae_count": 5.79116579895785
+}

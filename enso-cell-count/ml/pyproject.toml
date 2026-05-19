@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "enso-purity-mil"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["enso_purity_mil*", "enso_cellularity*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

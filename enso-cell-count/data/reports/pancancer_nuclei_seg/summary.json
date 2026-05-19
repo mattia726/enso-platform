@@ -1,0 +1,22 @@
+{
+  "ann_rows": 6075,
+  "ann_unique_slides": 6065,
+  "ann_unique_cases": 5185,
+  "ann_total_nuclei": 6170915689,
+  "wedge_rows": 18255,
+  "wedge_unique_slides": 18255,
+  "wedge_unique_cases": 10892,
+  "exact_slide_overlap": 0,
+  "case_overlap": 5125,
+  "sample_vial_overlap": 0,
+  "case_sample_type_overlap": 4928,
+  "ann_section_type_counts": {
+    "DX": 6075
+  },
+  "ann_sample_type_counts": {
+    "01": 5902,
+    "02": 2,
+    "06": 170,
+    "07": 1
+  }
+}

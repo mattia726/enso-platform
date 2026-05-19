@@ -1,0 +1,567 @@
+I verified the implementation in `mattia726/enso-cell-count`. The training is doing **well**, and the architecture is **mostly implemented correctly**. It is **not underfitting**, and I do **not** see classic severe overfitting. What I see is a model that learned the signal very fast, reached a plateau around epochs 5–9, and is now mostly bouncing around because of validation sampling noise, composite-loss/objective mismatch, and possibly a few implementation choices that should be tightened before you call the result final.
+
+Some earlier uploaded files in this chat have expired, so I relied on the GitHub repo plus the epoch table you pasted.
+
+## My verdict
+
+For the current run:
+
+```text
+Status: good training run
+Best raw count checkpoint: epoch 9
+Best composite-loss checkpoint: epoch 5
+Diagnosis: well-fit / plateaued, not underfit, not strongly overfit
+```
+
+A validation MAE of **6.78 cells/tile** against a mean true validation count of **~58.83 cells/tile** is strong for tile-level pseudo-label regression. That is about **11.52% MAE** and an **81.45% improvement** over the median baseline. After epoch 5, the model stays roughly in this band:
+
+```text
+Val MAE after epoch 5:
+mean ≈ 7.24 cells/tile
+std  ≈ 0.31 cells/tile
+range ≈ 6.78–7.92
+```
+
+That is a stable plateau, not a collapse.
+
+## What I verified in the repo
+
+The implementation does match the architecture we discussed. `model.py` has the 2560-dimensional Virchow input, projection to 512, learned 3×3 positional embedding, masked center-query multi-head attention, metadata MLP, residual MLP trunk, density head, dispersion head, ordinal head, quantile head, and quality head. It also computes:
+
+```python
+density = softplus(...)
+mu = density * exposure_mm2
+alpha = softplus(...)
+theta = 1 / alpha
+nb_logits = log(mu) - log(theta)
+```
+
+That is the right structure for the NB2-style count model. 
+
+The composite loss is also implemented in the expected way: Negative Binomial NLL, SmoothL1 on `log1p(mu)`, ordinal BCE, quantile pinball loss on log-counts, and optional quality loss. Teacher confidence weighting is applied to the count-related components. 
+
+The training loop uses AdamW with decay exclusions for biases/norms, gradient clipping, AMP support, per-epoch metric accumulation, ReduceLROnPlateau, early stopping, and checkpointing. 
+
+The train CLI saves `best_model.pth` based on **validation loss**, not raw MAE. That means your current “best model” is likely epoch 5, not epoch 9, even though epoch 9 is best for raw count MAE. 
+
+The dataset implementation samples tiles per slide, dynamically gathers 3×3 neighbor embeddings from the H5, constructs metadata, exposure, teacher count, teacher confidence, quality target, and count bin, then flattens slide-sampled items into tile batches.   
+
+The folds are case-level, and the code explicitly asserts no case leakage between train, validation, and test. That is very good and removes the biggest easy source of inflated validation performance. 
+
+The label pipeline reads Pan-Cancer-Nuclei-Seg DICOM ANN polygons, computes centroids, counts nuclei centroids into non-overlapping embedding tiles, and writes one Parquet label table per slide.   
+
+There are unit tests for centroid counting, ordinal bins, model output shapes, quantile ordering, valid center tile enforcement, composite loss finiteness, 3×3 neighbor gathering, one training epoch, inference, DICOM primitive index handling, and Pan-Cancer metadata parsing.   
+
+So the implementation is not a random toy model. It is a real, sensible implementation of the architecture.
+
+## Is it underfitting?
+
+No.
+
+Evidence:
+
+```text
+Epoch 1 val MAE: 24.39
+Epoch 3 val MAE: 8.51
+Epoch 5 val MAE: 7.04
+Epoch 9 val MAE: 6.78
+```
+
+The model learned most of the usable signal within the first 3–5 epochs. An underfitting model would usually have both high train MAE and high validation MAE, and it would continue improving if you gave it more epochs. Here, it reached a low validation error quickly and then plateaued.
+
+The architecture has enough capacity: it is using a rich Virchow embedding, 3×3 context attention, metadata, and residual nonlinear heads. There is no evidence from the table that capacity is too small.
+
+## Is it overfitting?
+
+Not in the classic sense.
+
+Classic overfitting would look like:
+
+```text
+train MAE keeps falling
+val MAE keeps rising
+train/val gap widens strongly
+```
+
+That is not what your table shows. In fact, from epoch 10 onward, train MAE is often **higher** than validation MAE:
+
+```text
+epoch 12: train MAE 9.08, val MAE 7.45
+epoch 14: train MAE 9.47, val MAE 7.59
+epoch 16: train MAE 9.11, val MAE 7.19
+```
+
+That does **not** mean validation is magically easier in a suspicious way by itself. The repo explains why this can happen:
+
+The train dataset uses `balanced_bins` sampling by default, while validation uses uniform sampling.  
+
+Balanced-bin sampling likely over-represents harder high-count bins during training, while uniform validation reflects the natural tile distribution. Also, train metrics are measured with dropout active, while validation runs with dropout disabled. So train/validation MAE are not perfectly apples-to-apples.
+
+The more accurate diagnosis is:
+
+```text
+Not underfitting.
+Not severe overfitting.
+Plateaued after epoch 5–9.
+Mild overtraining or noisy validation after epoch 9.
+```
+
+If raw count MAE is the product KPI, epoch 9 is currently your best. If calibrated uncertainty/composite behavior is the KPI, epoch 5 may be better.
+
+## The biggest implementation issue: validation sampling changes every epoch
+
+This is the main thing I would fix.
+
+In `train_cli.py`, each epoch does:
+
+```python
+train_ds.set_epoch(epoch)
+val_ds.set_epoch(epoch)
+```
+
+The dataset RNG depends on `self.epoch`, so validation samples a different subset of tiles each epoch.  
+
+That means your validation MAE/loss are partly measuring a changing validation subset, not just the changing model. This can explain why validation loss bounces around while MAE stays in the same narrow range.
+
+For model selection, validation should be fixed or exhaustive.
+
+I would change this:
+
+```python
+train_ds.set_epoch(epoch)
+val_ds.set_epoch(epoch)
+```
+
+to this:
+
+```python
+train_ds.set_epoch(epoch)
+
+# Keep validation deterministic across epochs.
+# This makes checkpoint selection much less noisy.
+val_ds.set_epoch(0)
+```
+
+Even better, for final selection, run validation on all tiles by setting:
+
+```bash
+--eval-tiles-per-slide 0
+```
+
+because `_sample_indices` returns all rows when `n <= 0`. 
+
+## Second issue: checkpointing is optimized for loss, not the doctor-facing metric
+
+Right now `best_model.pth` is saved only when `val_loss` improves. 
+
+That is why epoch 5 wins as the saved best model:
+
+```text
+epoch 5 val loss = 3.6709
+epoch 9 val MAE  = 6.78 but val loss = 4.3335
+```
+
+This discrepancy is expected because the loss is not just MAE. It includes NB calibration, log-count SmoothL1, ordinal BCE, quantile loss, and quality loss. 
+
+For this product, I would save at least three checkpoints:
+
+```text
+best_by_val_loss.pth
+best_by_val_mae_count.pth
+best_by_val_mae_log1p.pth or best_by_within_factor2.pth
+```
+
+The doctor-facing point estimate should probably use `best_by_val_mae_count` or `best_by_mae_log1p`, while the uncertainty/calibration model should be judged by interval coverage and NB loss.
+
+A minimal code change:
+
+```python
+best_val_loss = float("inf")
+best_val_mae = float("inf")
+best_val_log_mae = float("inf")
+
+...
+
+if val_loss < best_val_loss:
+    best_val_loss = val_loss
+    save_checkpoint(fold_dir / "best_by_loss.pth", ...)
+
+if val_metrics["mae_count"] < best_val_mae:
+    best_val_mae = float(val_metrics["mae_count"])
+    save_checkpoint(fold_dir / "best_by_mae_count.pth", ...)
+
+if val_metrics["mae_log1p"] < best_val_log_mae:
+    best_val_log_mae = float(val_metrics["mae_log1p"])
+    save_checkpoint(fold_dir / "best_by_mae_log1p.pth", ...)
+```
+
+I would also log `val_mae_count` directly in the console message. The metric is already computed in `metrics.py`; it is just not part of the main logger line. 
+
+## Third issue: quality head is probably not meaningful yet
+
+The architecture includes a quality/artifact head, but the current label builder appears to set:
+
+```python
+quality_flags = "pan_cancer_ann"
+```
+
+for all generated labels. 
+
+Then `_quality_targets` maps missing/neutral quality flags to class 0 unless the string contains terms like background, empty, artifact, blur, necrosis, or fold. 
+
+So in the current Pan-Cancer labels, the quality head is probably being trained to say “good” for almost everything. That means the quality loss is not yet clinically meaningful. It may not hurt much, but it can distort `val_loss` and partially explain why best loss and best MAE disagree.
+
+For the current training runs, I would set:
+
+```bash
+--quality-weight 0.0
+```
+
+until you have real quality labels, or derive them from an actual tissue/background/artifact detector.
+
+## Fourth issue: exposure normalization exists, but tissue fraction is currently constant
+
+The model is correctly designed as:
+
+```text
+predicted density × exposure_mm2 = predicted count
+```
+
+But the current label generation sets:
+
+```python
+tissue_fraction = 1.0
+exposure_mm2 = tile_area
+```
+
+for every tile. 
+
+Inference also builds metadata with tissue fraction 1.0 and exposure equal to full tile area. 
+
+So right now, the model is effectively learning **count per full tile**, not true tissue-adjusted count. That is okay for a first model, especially if tiles are mostly tissue-containing. But for the doctor selection use case, partial tissue/background tiles matter.
+
+I would add a tissue-mask-derived field:
+
+```text
+tissue_fraction
+exposure_mm2 = tile_area_mm2 × tissue_fraction
+```
+
+Then the model can separate:
+
+```text
+low count because tissue is sparse/background
+vs.
+low count because tissue is present but hypocellular
+```
+
+That distinction matters clinically.
+
+## Fifth issue: Pan-Cancer labels are DX, not exact wedge frozen-section overlap
+
+The Pan-Cancer-Nuclei-Seg summary in the repo shows:
+
+```text
+ANN rows: 6075
+unique ANN slides: 6065
+total nuclei: 6,170,915,689
+ANN section type: DX only
+exact slide overlap with wedge: 0
+case overlap: 5125
+case/sample-type overlap: 4928
+```
+
+
+
+This means the current training signal is very strong for TCGA DX-style slides, but it is **not yet proof** that the model generalizes perfectly to the exact frozen-section wedge slides used for purity. There is case-level overlap, but not physical-slide overlap.
+
+That is not a blocker. It just means the correct claim is:
+
+```text
+The model learns TCGA Pan-Cancer nuclei-count labels very well.
+```
+
+Not yet:
+
+```text
+The model is clinically validated for frozen-section wedge selection.
+```
+
+For the latter, you need either teacher labels or manual/audited labels on the actual TS/MS/BS frozen-section distribution.
+
+## Should training continue?
+
+Probably not much longer in the current setup.
+
+Because best validation loss was epoch 5, and epochs 6–16 have not beaten it, your patience counter is likely near exhaustion. With patience 12, epoch 17 will probably trigger early stopping if its validation loss does not beat 3.6709. The code uses validation loss for scheduler and early stopping.  
+
+I would not expect epoch 20 or 30 to materially improve raw MAE unless you change one of:
+
+```text
+validation sampling
+loss weights
+quality loss
+label/tissue-fraction quality
+learning rate schedule
+training data distribution
+```
+
+The current run has already plateaued.
+
+## Which checkpoint should you use?
+
+For now:
+
+```text
+Use epoch 9 for raw count point estimates.
+Use epoch 5 for composite loss / uncertainty calibration candidate.
+```
+
+But before shipping either, run a deterministic full validation:
+
+```bash
+python -m enso_cellularity.evaluate_cli \
+  --checkpoint path/to/epoch9_or_best_by_mae.pth \
+  --split-csv path/to/val_slides.csv \
+  --tiles-per-slide 0 \
+  --out-json full_val_epoch9.json
+```
+
+Then compare epoch 5 and epoch 9 on:
+
+```text
+mae_count
+mae_log1p
+within_factor2
+within_factor10
+bin_accuracy
+interval_coverage_90
+mean_pred_count vs mean_true_count
+spearman
+```
+
+Those metrics already exist in `metrics.py`. 
+
+For the product, I would prioritize:
+
+```text
+1. ROI-level within-factor-2 accuracy
+2. tile-level mae_log1p
+3. tile-level count-bin accuracy
+4. raw tile MAE
+5. interval coverage
+```
+
+Raw tile MAE is useful, but doctors care about selected regions, where errors average over many tiles.
+
+## Final answer
+
+Yes, the training is doing good.
+
+No, it is not underfitting.
+
+No, it is not showing severe overfitting.
+
+The implementation is mostly correct and matches the architecture we wanted.
+
+But I would not call it fully production-ready until these changes are made:
+
+```text
+1. Freeze validation sampling across epochs or evaluate all val tiles.
+2. Save best_by_mae_count and best_by_mae_log1p, not only best_by_loss.
+3. Set quality_weight=0 until real quality/artifact labels exist.
+4. Add true tissue_fraction/exposure from a tissue mask.
+5. Run full validation on all tiles for epoch 5 vs epoch 9.
+6. Validate separately on frozen-section / wedge-like slides.
+7. Add label QA: counted nuclei in embedding tiles vs ANN slide nuclei count, plus visual spot checks.
+```
+
+The run is already strong enough to justify continuing the project. The main work now is not “make the network bigger”; it is **stabilize validation, choose the right checkpoint metric, fix quality/exposure supervision, and validate on the exact clinical domain**.
+
+
+Yes — your intuition is right. The current run was **not using real quality metrics**, and it was **not using real tissue fraction**.
+
+More precisely:
+
+## 1. Quality: it had a quality head/loss, but not meaningful quality supervision
+
+The model architecture includes a `quality_head` with 3 quality classes, and the default CLI has:
+
+```text
+--num-quality-classes = 3
+--quality-weight = 0.20
+```
+
+So unless you explicitly launched training with:
+
+```bash
+--quality-weight 0.0
+```
+
+the composite `train_loss` and `val_loss` did include a **quality loss component**. The default loss weights include `quality: 0.20`, and `train_cli.py` passes that into `CellularityLossWeights`.  
+
+But the quality labels themselves were basically not real QC labels.
+
+The label builder sets:
+
+```python
+"quality_flags": "pan_cancer_ann"
+```
+
+for every tile. It does **not** create real labels like background, blur, fold, necrosis, artifact, etc. 
+
+Then the dataset code does this:
+
+```python
+if "quality_target" in labels.columns:
+    use labels["quality_target"]
+elif "quality_flags" not in labels.columns:
+    return zeros
+else:
+    map "background|empty" -> 1
+    map "artifact|blur|necrosis|fold" -> 2
+    otherwise remain 0
+```
+
+Since `"pan_cancer_ann"` does not contain those keywords, almost/all tiles become:
+
+```text
+quality_target = 0
+```
+
+which means “good/default tissue.” 
+
+So the answer is:
+
+```text
+The model was using a quality loss term, but it was not using real quality metrics or real quality labels.
+```
+
+It was mostly learning:
+
+```text
+everything is quality class 0
+```
+
+That can still contribute to `val_loss`, but it is not clinically meaningful and does not tell you whether tiles are blurry, folded, necrotic, background, etc.
+
+Also, the reported metrics did **not** include quality accuracy, quality F1, artifact recall, etc. The metrics accumulator tracks count MAE, log MAE, factor-2 accuracy, bin accuracy, interval coverage, mean true/predicted count, and Spearman. It does not compute quality metrics. 
+
+So the visible table’s MAE values were pure count metrics. The `Val Loss`, however, likely included the degenerate quality-loss component if you used the default `--quality-weight 0.20`.
+
+## 2. Tissue fraction: it was always 1.0
+
+The current label builder sets:
+
+```python
+tissue_fraction = np.ones(len(counts), dtype=np.float32)
+exposure_mm2 = tile_area
+```
+
+for every tile. 
+
+The dataset then reads those fields into metadata:
+
+```python
+tissue_fraction = labels.get("tissue_fraction", 1.0)
+tile_area = labels["tile_area_mm2"]
+exposure = labels["exposure_mm2"]
+```
+
+and returns normalized metadata including tissue fraction and exposure. 
+
+The model does use exposure mathematically:
+
+```python
+density = softplus(density_head)
+mu = density * exposure_mm2
+```
+
+So architecturally it supports exposure/tissue-area correction. 
+
+But because `exposure_mm2` was always the full tile area, the current run was effectively doing:
+
+```text
+predicted count = predicted density × full tile area
+```
+
+not:
+
+```text
+predicted count = predicted density × actual tissue-covered tile area
+```
+
+Inference does the same thing: for unlabeled H5 inference, it creates:
+
+```python
+tissue_fraction = ones
+exposure_mm2 = tile_area
+```
+
+so it also assumes every tile has full tissue exposure. 
+
+So the answer is:
+
+```text
+The model was using tissue_fraction as an input field, but the actual value was always 1.0.
+It was not using a real tissue mask or real partial-tissue fraction.
+```
+
+## Practical interpretation
+
+Your current model learned:
+
+```text
+Virchow 3×3 tile context
++ MPP/tile-area metadata
+→ nuclei count per full embedding tile
+```
+
+It did **not** learn:
+
+```text
+cell density adjusted for actual tissue-covered area
+```
+
+and it did **not** learn:
+
+```text
+artifact/background/necrosis quality-aware counting
+```
+
+except in a superficial way.
+
+## Why the MAE is still good
+
+This is not fatal. The count labels are still real tile-level nuclei counts, and the model is clearly learning that signal well.
+
+But the current result should be described as:
+
+> “Predicts nuclei count per kept embedding tile, assuming full-tile exposure and no real artifact-quality supervision.”
+
+Not yet:
+
+> “Predicts tissue-normalized viable cellularity with artifact-aware QC.”
+
+## What I would change immediately
+
+For the next run, I would do two things.
+
+First, disable quality loss until real quality labels exist:
+
+```bash
+--quality-weight 0.0
+```
+
+That makes `val_loss` cleaner and more aligned with the count task.
+
+Second, add a real tissue mask field to the label table:
+
+```text
+tissue_fraction = tissue_pixels / tile_pixels
+exposure_mm2 = tile_area_mm2 × tissue_fraction
+```
+
+Then the model’s existing architecture can actually use the exposure correction it already has.
+
+The current run is still valid as a **count-per-full-tile model**. It is just not yet a **quality-aware, tissue-fraction-corrected cellularity model**.
