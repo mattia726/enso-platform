@@ -30,6 +30,9 @@ backend-install:
 	$(VENV_PY) -m pip install $(PIP_ARGS) -r backend/requirements.txt
 	$(VENV_PY) -m pip install $(PIP_ARGS) -e backend
 	$(VENV_PY) -m pip install $(PIP_ARGS) Pillow shapely
+	# Torch is intentionally not in requirements.txt (see AGENTS.md);
+	# install the CPU build separately so the full test suite is runnable.
+	$(VENV_PY) -m pip install $(PIP_ARGS) --index-url https://download.pytorch.org/whl/cpu torch
 
 backend-test:
 	$(VENV_PY) -m pytest backend/tests -q
@@ -59,12 +62,19 @@ frontend-dev:
 	cd frontend && npm run dev
 
 visual-check:
-	cd frontend && npm run build && \
-		(npx serve out -p 3010 & echo $$! > .serve.pid && sleep 4) && \
+	cd frontend && npm run build
+	# Start the static server detached from the make shell so killing make
+	# does not orphan the server. The pid file is consulted by cleanup.
+	cd frontend && \
+		(setsid nohup npx serve out -p 3010 > .serve.log 2>&1 < /dev/null & echo $$! > .serve.pid) && \
+		sleep 5 && \
 		ENSO_WORKBENCH_URL=http://localhost:3010/macrodissection \
-			ENSO_SCREENSHOT_DIR=$$(pwd)/docs/screenshots \
+			ENSO_SCREENSHOT_DIR=$$(pwd)/../docs/screenshots \
 			npx playwright test tests/visual/macrodissection.spec.ts ; \
-		test -f .serve.pid && kill `cat .serve.pid` 2>/dev/null ; rm -f .serve.pid
+		RC=$$? ; \
+		test -f .serve.pid && kill $$(cat .serve.pid) 2>/dev/null ; \
+		rm -f .serve.pid .serve.log ; \
+		exit $$RC
 
 clean-tests:
 	rm -rf frontend/test-results frontend/test-screenshots
