@@ -1,28 +1,36 @@
 {
   "name": "enso-purity-frontend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "predev": "node -e \"const fs=require('fs'); if (fs.existsSync('gallery')) fs.cpSync('gallery','public/gallery',{recursive:true,force:true});\"",
     "dev": "next dev",
     "prebuild": "node -e \"const fs=require('fs'); if (fs.existsSync('gallery')) fs.cpSync('gallery','public/gallery',{recursive:true,force:true});\"",
     "assets:cellularity": "python scripts/build_cellularity_artifacts.py",
+    "assets:macrodissection": "python -m enso_purity.macrodissection.build_artifacts --cases-dir public/cases --gallery gallery/gallery_summary.csv",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "next": "^16.1.6",
+    "openseadragon": "^4.1.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/openseadragon": "^3.0.10",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@vitest/coverage-v8": "^1.6.0",
     "autoprefixer": "^10.4.0",
+    "jsdom": "^24.0.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^1.6.0"
   }
 }
