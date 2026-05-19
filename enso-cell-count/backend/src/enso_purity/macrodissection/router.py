@@ -23,7 +23,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from .adequacy import label_adequacy
 from .cases import (
-    CaseMeta,
     clear_case_cache,
     discover_cases,
     load_tile_arrays,
@@ -33,7 +32,6 @@ from .report import build_report_payload
 from .roi import compute_roi_metrics
 from .storage import ROIRecord, ROIStore
 from .thresholds import (
-    PROFILES,
     ThresholdOverride,
     list_profiles,
     resolve_thresholds,
@@ -376,27 +374,11 @@ def build_router(
                 status_code=400,
                 detail="ROI has no metrics snapshot; lock the ROI first",
             )
-        # Rebuild the verdict object for the payload helper.
+        # Rebuild the verdict object for the payload helper. The metrics
+        # snapshot is passed through verbatim via verdict.metrics_snapshot
+        # so we only need to reconstruct the verdict typed value here.
         from .adequacy import AdequacyVerdict
-        from .roi import MetricsCI, ROIMetrics
 
-        def _ci(d: dict[str, float]) -> MetricsCI:
-            return MetricsCI(median=d["median"], low=d["low"], high=d["high"])
-
-        metrics = ROIMetrics(
-            n_tiles=int(metrics_dict["n_tiles"]),
-            tiles_with_data=int(metrics_dict["tiles_with_data"]),
-            area_thumbpx2=float(metrics_dict["area_thumbpx2"]),
-            area_mm2=float(metrics_dict["area_mm2"]),
-            tissue_fraction_mean=float(metrics_dict["tissue_fraction_mean"]),
-            purity=_ci(metrics_dict["purity"]),
-            total_nuclei=_ci(metrics_dict["total_nuclei"]),
-            tumor_nuclei=_ci(metrics_dict["tumor_nuclei"]),
-            adequacy_probability=float(metrics_dict["adequacy_probability"]),
-            purity_point=float(metrics_dict["purity_point"]),
-            total_nuclei_point=float(metrics_dict["total_nuclei_point"]),
-            tumor_nuclei_point=float(metrics_dict["tumor_nuclei_point"]),
-        )
         verdict = AdequacyVerdict(
             label=verdict_dict["label"],
             confidence=float(verdict_dict["confidence"]),

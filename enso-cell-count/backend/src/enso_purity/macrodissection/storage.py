@@ -22,9 +22,8 @@ import os
 import threading
 import uuid
 from datetime import datetime, timezone
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any
 
 
 _FILE_LOCK = threading.Lock()

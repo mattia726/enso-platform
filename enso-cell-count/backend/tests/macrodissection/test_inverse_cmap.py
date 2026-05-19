@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from enso_purity.macrodissection.inverse_cmap import (
     CELLULARITY_SPEC,

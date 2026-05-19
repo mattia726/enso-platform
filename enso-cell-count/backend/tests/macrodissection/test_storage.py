@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from enso_purity.macrodissection.storage import ROIRecord, ROIStore
+from enso_purity.macrodissection.storage import ROIStore
 
 
 def _draft_kwargs():

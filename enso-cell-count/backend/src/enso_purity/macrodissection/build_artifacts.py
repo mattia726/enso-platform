@@ -36,7 +36,6 @@ import csv
 import json
 import logging
 import sys
-from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -49,7 +48,6 @@ from .inverse_cmap import (
     CELLULARITY_SPEC,
     PURITY_SPEC,
     decode_rgb,
-    decode_rgba_image,
 )
 
 

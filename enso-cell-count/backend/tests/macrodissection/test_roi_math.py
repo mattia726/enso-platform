@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 
 import numpy as np
 import pytest
@@ -80,7 +79,6 @@ def test_tile_weights_multiple_tiles(synthetic_grid: TileGrid):
 def test_tile_weights_match_shapely_oracle(synthetic_grid: TileGrid):
     """Cross-check against shapely for a randomly-rotated complex polygon."""
 
-    rng = np.random.default_rng(0)
     base = sg.Polygon([(20, 20), (160, 20), (160, 100), (50, 110), (20, 80)])
     poly = sa.rotate(base, 23.0, origin=(80, 60), use_radians=False)
     poly_list = list(poly.exterior.coords)[:-1]

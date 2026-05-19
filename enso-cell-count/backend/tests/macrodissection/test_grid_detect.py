@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from enso_purity.macrodissection.grid_detect import (
-    GridSpec,
     detect_grid,
     per_tile_modal_color,
 )
@@ -58,3 +56,36 @@ def test_per_tile_modal_color_roundtrip():
     assert sampled.shape == palette.shape
     np.testing.assert_array_equal(sampled[..., :3], palette[..., :3])
     np.testing.assert_array_equal(sampled[..., 3], palette[..., 3])
+
+
+def test_detect_grid_on_real_asset_if_present(tmp_path):
+    """If the demo case_1 mask is checked in, the detector recovers a
+    sensible grid (square stride, dimensions that fit the base image)."""
+
+    import numpy as np
+    from pathlib import Path
+    from PIL import Image
+
+    asset = (
+        Path(__file__).resolve().parents[3]
+        / "frontend"
+        / "public"
+        / "cases"
+        / "case_1_mask.png"
+    )
+    if not asset.exists():
+        # Repo without the demo PNGs; nothing to assert.
+        return
+    rgba = np.array(Image.open(asset).convert("RGBA"))
+    h, w = rgba.shape[:2]
+    spec = detect_grid(rgba)
+    # Stride must be square (or near-square) and reasonably small.
+    assert spec.stride_x == spec.stride_y, (spec.stride_x, spec.stride_y)
+    assert 4 <= spec.stride_x <= min(w, h) // 8
+    assert 0 <= spec.offset_x < spec.stride_x
+    assert 0 <= spec.offset_y < spec.stride_y
+    # Grid must cover most of the image.
+    assert spec.grid_nx * spec.stride_x <= w
+    assert spec.grid_ny * spec.stride_y <= h
+    assert spec.grid_nx * spec.stride_x >= w - spec.stride_x
+    assert spec.grid_ny * spec.stride_y >= h - spec.stride_y

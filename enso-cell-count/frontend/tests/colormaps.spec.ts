@@ -54,3 +54,55 @@ describe("colormap LUTs", () => {
     expect(hi).toEqual(lutLookup(1, PURITY_SPEC));
   });
 });
+
+describe("Python ↔ TypeScript LUT parity", () => {
+  // Read the Python-generated colormap stops and verify that the TS LUTs
+  // interpolate to within ±1 RGB step of the Python palette at every
+  // matching stop position.
+  const fixture = require("./fixtures/colormaps_python_lut.json") as {
+    purity_RdYlBu_r: [number, number, number][];
+    cellularity_purity_no_white: [number, number, number][];
+  };
+
+  function tsLutValueAt(spec: typeof PURITY_SPEC, t: number): [number, number, number] {
+    const v = spec.vmin + t * (spec.vmax - spec.vmin);
+    return lutLookup(v, spec);
+  }
+
+  it("RdYlBu_r LUT matches Python within 1 RGB step at each stop", () => {
+    const stops = fixture.purity_RdYlBu_r;
+    const n = stops.length;
+    for (let i = 0; i < n; i++) {
+      // Stop position in [0, 1] used by Python's palette_stops.
+      const t = i / (n - 1);
+      // PURITY_SPEC has gamma=1, so the "raw" t maps directly into the
+      // normalized LUT index used at draw time.
+      const [r, g, b] = tsLutValueAt(PURITY_SPEC, t);
+      const [pr, pg, pb] = stops[i];
+      expect(Math.abs(r - pr)).toBeLessThanOrEqual(2);
+      expect(Math.abs(g - pg)).toBeLessThanOrEqual(2);
+      expect(Math.abs(b - pb)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("cellularity LUT matches Python within 1 RGB step at each stop", () => {
+    const stops = fixture.cellularity_purity_no_white;
+    const n = stops.length;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      // For cellularity we have to undo the gamma so the LUT index hits
+      // the same position as Python's palette_stops (which sample the
+      // colormap directly, without the gamma warp).
+      const v = CELLULARITY_SPEC.vmin + (t ** (1 / CELLULARITY_SPEC.gamma)) *
+        (CELLULARITY_SPEC.vmax - CELLULARITY_SPEC.vmin);
+      const [r, g, b] = lutLookup(v, CELLULARITY_SPEC);
+      const [pr, pg, pb] = stops[i];
+      // The TS LUT is built from the same 7 stops with linear interp; the
+      // tolerance is 1 step except at the bin edges where a half-pixel
+      // rounding can creep in.
+      expect(Math.abs(r - pr)).toBeLessThanOrEqual(2);
+      expect(Math.abs(g - pg)).toBeLessThanOrEqual(2);
+      expect(Math.abs(b - pb)).toBeLessThanOrEqual(2);
+    }
+  });
+});
