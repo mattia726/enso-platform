@@ -166,3 +166,21 @@ Key caveats:
 - **CORS / API**: the FastAPI app whitelists `localhost:3000` and
   `localhost:3001` (Next dev server) by default; extra origins can be
   supplied via `ENSO_API_CORS_ORIGINS`.
+
+### Additional setup notes
+
+- **`python` not found**: The system only provides `python3`; the Makefile
+  calls `python`. The update script creates a symlink at
+  `/usr/local/bin/python`.
+- **`next lint` broken on Next.js 16**: The `npm run lint` script invokes
+  `next lint` which fails with "Invalid project directory" under Next.js
+  16.1.6. ESLint is also disabled during builds (`eslint:
+  { ignoreDuringBuilds: true }` in `next.config.mjs`). Skip frontend
+  lint for now.
+- **ML test pre-existing failures**: `ml/tests/test_model.py` (import
+  `RegressionHead` removed from model) and 15 failures in
+  `test_dataset.py`/`test_training.py`/`test_cellularity_training_pipeline.py`
+  related to `VirchowAdapter.linear` missing. These are code-level issues,
+  not environment issues. 44 ML tests still pass.
+- **Backend test count**: The actual count is 89 (not 57 as noted
+  elsewhere) as macrodissection and cellularity tests have grown.
