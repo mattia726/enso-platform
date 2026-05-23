@@ -1,0 +1,43 @@
+{
+  "barcode": "TCGA-DX-A23T-01A-01-TSA",
+  "base_height": 674,
+  "base_width": 2663,
+  "case_id": 2,
+  "cellularity_model_version": "cellularity_ssd_fold1",
+  "file_uuid": "4f4548cf-870a-4962-9e04-413da8c0725e",
+  "grid_nx": 190,
+  "grid_ny": 48,
+  "mpp_thumb_x": 8.0,
+  "mpp_thumb_y": 8.0,
+  "n_tiles_tissue": 3557,
+  "offset_x": 0,
+  "offset_y": 0,
+  "project_id": "TCGA-SARC",
+  "purity_model_version": "v3_fold0",
+  "schema_version": 1,
+  "source": "inverse_colormap",
+  "thresholds_default": {
+    "borderline_purity_band": 0.05,
+    "borderline_tumor_cells_band": 200,
+    "purity_min": 0.2,
+    "tumor_cells_min": 1000
+  },
+  "tile_area_mm2": 0.012544000000000001,
+  "tile_encoder_version": "virchow_v1",
+  "tile_pix_h": 14,
+  "tile_pix_w": 14,
+  "tile_size_um": 112.0,
+  "tiles_bin": "case_2_grid.bin",
+  "tiles_bin_layout": [
+    "purity",
+    "purity_sd",
+    "nuclei",
+    "nuclei_sd",
+    "tumor_nuclei",
+    "tissue_fraction"
+  ],
+  "uncertainty_defaults": {
+    "nuclei_sd": 5.0,
+    "purity_sd": 0.07
+  }
+}
